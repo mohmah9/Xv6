@@ -36,23 +36,37 @@ idtinit(void)
 void
 trap(struct trapframe *tf)
 {
+  struct proc *curproc = myproc();
   if(tf->trapno == T_SYSCALL){
-    if(myproc()->killed)
+    if(curproc->killed)
       exit();
-    myproc()->tf = tf;
+    curproc->tf = tf;
     syscall();
-    if(myproc()->killed)
+    if(curproc->killed)
       exit();
     return;
   }
+
 
   switch(tf->trapno){
   case T_IRQ0 + IRQ_TIMER:
     if(cpuid() == 0){
       acquire(&tickslock);
       ticks++;
+      
       wakeup(&ticks);
       release(&tickslock);
+      
+       if(curproc) {
+        //  cprintf("state : %s",curproc->state);
+        
+        if(curproc->state == RUNNING)
+          curproc->rtime++;
+        else if(curproc->state == SLEEPING){
+          //  cprintf("raft toosh \n");
+          curproc->iotime++;
+        }
+      }
     }
     lapiceoi();
     break;
