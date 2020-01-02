@@ -88,6 +88,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->priority = 60;
 
   release(&ptable.lock);
 
@@ -384,6 +385,7 @@ void
 scheduler(void)
 {
   struct proc *p;
+  struct proc *temp_p;
   struct cpu *c = mycpu();
   c->proc = 0;
   
@@ -393,13 +395,34 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+    struct proc *min =0;
+    // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    //   if (p->priority<min){
+    //     min =p->priority;
+    //   }
+    // }
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
+      if(p->state != RUNNABLE )
         continue;
+      min=p;
+      for(temp_p = ptable.proc; temp_p < &ptable.proc[NPROC]; temp_p++){
+      if (temp_p->state != RUNNABLE){
+        continue;
+      }
+      if (min->priority > temp_p->priority)
+      {
+        min = temp_p;
+      }
+      
+      // if (p->priority<min){
+      //   min =p->priority;
+      // }
+    }
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
+      p=min;
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
@@ -594,3 +617,31 @@ procdump(void)
   }
 }
 
+void
+set_priority(int prior){
+  int pre = myproc()->priority;
+  myproc()->priority = prior;
+  if (prior < pre){
+    yield();
+  }
+  // yield();
+}
+
+void
+my_ps(void){
+  struct proc *p;
+  acquire(&ptable.lock);
+  cprintf("name \t pid \t state \t priority \n");
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state == SLEEPING)
+      cprintf("%s \t %d \t SLEEPING \t %d \n" , p->name , p->pid , p->priority);
+    else if(p->state == RUNNABLE)
+      cprintf("%s \t %d \t RUNNABLE \t %d \n" , p->name , p->pid , p->priority);
+    else if(p->state == RUNNING)
+      cprintf("%s \t %d \t RUNNING \t %d \n" , p->name , p->pid , p->priority);
+    else if(p->state == ZOMBIE)
+      cprintf("%s \t %d \t ZOMBIE \t %d \n" , p->name , p->pid , p->priority);
+  }
+  release(&ptable.lock);
+  // return 1;
+}

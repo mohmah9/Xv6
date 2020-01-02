@@ -103,3 +103,19 @@ int sys_waitx(void)
   // return test();
   return waitx(wtime,rtime);
 }
+
+int sys_set_priority(void){
+  int prior;
+  if(argint(0, (void*)&prior) < 0){
+    return -1;
+  }
+  // int pid = myproc()->pid;
+  int pre = myproc()->priority;
+  set_priority(prior);
+  return pre;
+}
+
+int sys_my_ps(void){
+  my_ps();
+  return 1;
+}
