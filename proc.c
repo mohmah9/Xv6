@@ -89,6 +89,7 @@ found:
   p->state = EMBRYO;
   p->pid = nextpid++;
   p->priority = 60;
+  p->queue = 1;
 
   release(&ptable.lock);
 
@@ -381,11 +382,74 @@ waitx(int* wtime , int*rtime)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
+int
+fifotime(void){
+  int fifot = ticks;
+  struct proc* proc;
+  for(proc = ptable.proc; proc < &ptable.proc[NPROC]; proc++)
+  {
+    if((proc->state == RUNNABLE)&&(proc->queue == 2)&&(proc->q2time<fifot))
+      fifot = proc->q2time;
+  }
+  return fifot;
+}
+
+int
+prior(void){
+  int prior= 100;
+  struct proc* proc;
+  for(proc = ptable.proc; proc < &ptable.proc[NPROC]; proc++)
+  {
+    if((proc->state == RUNNABLE)&&(proc->queue == 1)&&(proc->priority<prior))
+      prior = proc->priority;
+  }
+  return prior;
+}
+
+struct proc* queue_finder(int *index1, int *index2, int *index3, int *queue) {
+  int i;
+  struct proc* proc2;
+  int fifot =fifotime();
+  int priorit =prior();
+  notfound:
+  for (i = 0; i < NPROC; i++) {
+    switch(*queue) {
+      case 1: // priority sched
+        proc2 = &ptable.proc[(*index1 + i) % NPROC];
+        if (proc2->state == RUNNABLE && proc2->queue == *queue && proc2->priority == priorit) {
+          *index1 = (*index1 + 1 + i) % NPROC;
+          return proc2; // found a runnable process with appropriate queue
+        }
+      case 2:// FIFO sched
+        proc2 = &ptable.proc[(*index2 + i) % NPROC];
+        if (proc2->state == RUNNABLE && proc2->queue == *queue && proc2->q2time == fifot) {
+          *index2 = (*index2 + 1 + i) % NPROC;
+          return proc2; // found a runnable process with appropriate queue
+        }
+      case 3: // RR sched
+        proc2 = &ptable.proc[(*index3 + i) % NPROC];
+        if (proc2->state == RUNNABLE && proc2->queue == *queue){
+          *index3 = (*index3 + 1 + i) % NPROC;
+          return proc2; // found a runnable process with appropriate queue
+        }
+    }
+  }
+  if (*queue == 3) {//did not find any process on any of the prorities
+    *queue = 3;
+    return 0;
+  }
+  else {
+    *queue += 1; //will try to find a process at a lower queue (ighter value of queue)
+    goto notfound;
+  }
+  return 0;
+}
+
 void
 scheduler(void)
 {
   struct proc *p;
-  struct proc *temp_p;
+  // struct proc *p1;
   struct cpu *c = mycpu();
   c->proc = 0;
   
@@ -393,51 +457,105 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
-    // Loop over process table looking for process to run.
+    // Looking for runnable process 
     acquire(&ptable.lock);
-    struct proc *min =0;
-    // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    //   if (p->priority<min){
-    //     min =p->priority;
-    //   }
-    // }
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE )
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    {
+      if(p->state != RUNNABLE)
         continue;
-      min=p;
-      for(temp_p = ptable.proc; temp_p < &ptable.proc[NPROC]; temp_p++){
-      if (temp_p->state != RUNNABLE){
-        continue;
-      }
-      if (min->priority > temp_p->priority)
-      {
-        min = temp_p;
-      }
       
-      // if (p->priority<min){
-      //   min =p->priority;
-      // }
-    }
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      p=min;
+      struct proc *chosenP = 0;
+      int queue = 1;
+      int index1 = 0;
+      int index2 = 0;
+      int index3 = 0;
+      if(p->state != RUNNABLE)
+        continue;
+      chosenP=queue_finder(&index1, &index2, &index3, &queue);
+      if (chosenP != 0)
+        p = chosenP;
+      else{
+        if(p->state != RUNNABLE)
+          continue;
+      }
+      if(p!=0)
+      {
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
-
       swtch(&(c->scheduler), p->context);
       switchkvm();
-
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
+      }
     }
     release(&ptable.lock);
-
   }
 }
+
+
+// struct proc* queue_finder(int *queue) {
+//   struct proc* proc2;
+//   struct proc *minP = 0;
+//   struct proc * min=0;
+//   switch (*queue){
+//     case 1:
+//       for(proc2 = ptable.proc; proc2 < &ptable.proc[NPROC]; proc2++){
+//         if (proc2->state == RUNNABLE && proc2->queue == *queue) {
+//           if(proc2->pid <2){
+//             return proc2;
+//           }
+//           if(min==0){
+//             min=proc2;
+//             continue;
+//           }
+//           else if(min->priority > proc2->priority){
+//             min=proc2;
+//           }
+//         }else{
+//           continue;
+//         }
+//       }
+//       if(min ==0){
+//         *queue++;
+//       }
+//       return min;
+//     case 2:
+//       for(proc2 = ptable.proc; proc2 < &ptable.proc[NPROC]; proc2++){
+//         if (proc2->state == RUNNABLE && proc2->queue == *queue){
+//           if(proc2->pid <2){
+//             return proc2;
+//           }
+//           if(minP==0){
+//             minP=proc2;
+//             continue;
+//           }
+//           else if(minP->q2time > proc2->q2time){
+//             minP=proc2;
+//           }
+//         }
+//         else{
+//           continue;
+//         } 
+//       }
+//       if(min ==0){
+//         *queue++;
+//       }
+//       return minP;
+//     case 3:
+//       for(proc2 = ptable.proc; proc2 < &ptable.proc[NPROC]; proc2++){
+//         if (proc2->state == RUNNABLE && proc2->queue == *queue){
+//           return proc2;
+//         }
+//       }
+//       *queue++;
+//       return 0;
+//     case 4:
+//       return 0;
+//   }
+//   return 0;
+// }
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
@@ -631,17 +749,34 @@ void
 my_ps(void){
   struct proc *p;
   acquire(&ptable.lock);
-  cprintf("name \t pid \t state \t priority \n");
+  cprintf("name \t pid \t state \t queue \n");
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == SLEEPING)
-      cprintf("%s \t %d \t SLEEPING \t %d \n" , p->name , p->pid , p->priority);
+      cprintf("%s \t %d \t SLEEPING \t %d \n" , p->name , p->pid , p->queue);
     else if(p->state == RUNNABLE)
-      cprintf("%s \t %d \t RUNNABLE \t %d \n" , p->name , p->pid , p->priority);
+      cprintf("%s \t %d \t RUNNABLE \t %d \n" , p->name , p->pid , p->queue);
     else if(p->state == RUNNING)
-      cprintf("%s \t %d \t RUNNING \t %d \n" , p->name , p->pid , p->priority);
+      cprintf("%s \t %d \t RUNNING \t %d \n" , p->name , p->pid , p->queue);
     else if(p->state == ZOMBIE)
-      cprintf("%s \t %d \t ZOMBIE \t %d \n" , p->name , p->pid , p->priority);
+      cprintf("%s \t %d \t ZOMBIE \t %d \n" , p->name , p->pid , p->queue);
   }
   release(&ptable.lock);
   // return 1;
+}
+
+int
+nice(void){
+    acquire(&ptable.lock);
+    if (myproc()->queue < 3){
+      myproc()->queue++;
+      if(myproc()->queue ==2)
+        myproc()->q2time=ticks;
+      release(&ptable.lock);
+      yield();
+      return 0;
+    }else
+    {
+      release(&ptable.lock);
+      return -1;
+    }
 }

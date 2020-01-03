@@ -119,3 +119,7 @@ int sys_my_ps(void){
   my_ps();
   return 1;
 }
+
+int sys_nice(void){
+  return nice();
+}

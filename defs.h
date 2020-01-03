@@ -122,7 +122,9 @@ void            wakeup(void*);
 void            yield(void);
 int             waitx(int * wtime , int * rtime);
 void            set_priority(int prior);
-void             my_ps(void);
+void            my_ps(void);
+int             nice(void);
+// struct proc*    queue_finder(int *queue);
 
 // swtch.S
 void            swtch(struct context**, struct context*);
