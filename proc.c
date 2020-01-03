@@ -342,10 +342,10 @@ waitx(int* wtime , int*rtime)
       if(p->state == ZOMBIE){
         // Found one.
         p->etime = ticks;
-        *wtime= p->etime - p->stime - p->rtime - p->iotime;
+        *wtime= p->etime - p->stime - p->rtime;
         *rtime=p->rtime;
         p->iotime =p->etime - p->stime - p->rtime;
-        cprintf("etime : %d , stime: %d , rtime :%d , iotime:%d \n",p->etime , p->stime , p->rtime , p->iotime);
+        // cprintf("etime : %d , stime: %d , rtime :%d , iotime:%d \n",p->etime , p->stime , p->rtime , p->iotime);
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;

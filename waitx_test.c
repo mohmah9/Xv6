@@ -12,11 +12,11 @@ main(void)
     // int temp = 0;
     pid = fork();
     if(pid == 0){
-        sleep(1);
+        sleep(100);
         for (int i = 0; i < 1000; i++)
         {
             // temp ++;
-            printf(1, "fuck");
+            printf(1, "good ");
         }
         
         printf(1, "done child \n");
